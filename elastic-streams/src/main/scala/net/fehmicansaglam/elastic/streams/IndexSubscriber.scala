@@ -7,11 +7,13 @@ import org.elasticsearch.action.index.IndexResponse
 import org.elasticsearch.client.Client
 import org.reactivestreams.{Subscriber, Subscription}
 
-class InsertSink(client: Client, index: String, typ: String, max: Long) extends Subscriber[String] {
+class IndexSubscriber(client: Client, index: String, typ: String, max: Long) extends Subscriber[String] {
   private[this] var subscription: Subscription = _
+  private[this] val canceled = new AtomicBoolean(false)
+
   private[this] val available = new AtomicLong(max)
   private[this] val inProgress = new AtomicLong(0)
-  private[this] val canceled = new AtomicBoolean(false)
+
   private[this] val builder = client.prepareIndex(index, typ)
 
   private[this] val listener: ActionListener[IndexResponse] = new ActionListener[IndexResponse] {
@@ -21,12 +23,14 @@ class InsertSink(client: Client, index: String, typ: String, max: Long) extends 
     }
 
     override def onResponse(response: IndexResponse): Unit = {
-      val r = available.get() - inProgress.decrementAndGet()
-      available.addAndGet(-r)
-      subscription.request(r)
+      val demand = available.get() - inProgress.decrementAndGet()
+      if (demand >= batchSize) {
+        available.addAndGet(-demand)
+        subscription.request(demand)
+//        println(s"Requested $demand inProgress: ${inProgress.get()} available: ${available.get()}")
+      }
     }
   }
-
 
   override def onError(t: Throwable): Unit = {
     if (t == null) throw null
@@ -64,6 +68,8 @@ class InsertSink(client: Client, index: String, typ: String, max: Long) extends 
       builder.setSource(element).execute(listener)
     }
   }
+
+  protected def batchSize: Long = 10
 
   // Showcases a convenience method to idempotently marking the Subscriber as "done", so we don't want to process more
   // elements herefor we also need to cancel our `Subscription`.
