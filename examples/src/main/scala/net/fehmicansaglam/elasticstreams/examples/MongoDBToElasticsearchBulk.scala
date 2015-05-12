@@ -1,17 +1,18 @@
-package net.fehmicansaglam.elastic.streams.examples
+package net.fehmicansaglam.elasticstreams.examples
 
 import akka.stream.ActorFlowMaterializer
 import akka.stream.scaladsl.Sink
 import akka.util.Timeout
 import net.fehmicansaglam.bson.BsonDocument
-import net.fehmicansaglam.elastic.streams.IndexSubscriber
+import net.fehmicansaglam.elasticstreams.BulkIndexSubscriber
 import net.fehmicansaglam.tepkin.MongoClient
 import org.elasticsearch.client.transport.TransportClient
 import org.elasticsearch.common.transport.InetSocketTransportAddress
+import scala.collection.JavaConverters._
 
 import scala.concurrent.duration._
 
-object Example1 extends App {
+object MongoDBToElasticsearchBulk extends App {
 
   val mongoClient = MongoClient("mongodb://localhost")
 
@@ -30,8 +31,8 @@ object Example1 extends App {
   for {
     source <- collection1.find(BsonDocument.empty)
   } {
-    val sink = Sink(new IndexSubscriber(elasticClient, "users", "user", 20))
-    source.mapConcat(_.map(doc => BsonDocument(doc.elements.filterNot(_.name == "_id")).toJson())).runWith(sink)
+    val sink = Sink(new BulkIndexSubscriber(elasticClient, "users", "user", 20))
+    source.map(_.map(doc => BsonDocument(doc.elements.filterNot(_.name == "_id")).toJson()).asJava).runWith(sink)
   }
 
 }
