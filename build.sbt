@@ -19,6 +19,7 @@ lazy val commonSettings = Seq(
     "-Xfuture",
     "-Ywarn-unused-import" // 2.11 only
   ),
+  crossPaths := false,
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
 ) ++ publishSettings
 
